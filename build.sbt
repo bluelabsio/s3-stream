@@ -8,6 +8,10 @@ lazy val commonSettings = Seq(
   scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature")
 )
 
+lazy val root = (project in file(".")).
+  settings(commonSettings: _*).
+  aggregate(s3stream)
+
 lazy val awsRequests = (project in file("akka-http-aws")).
   settings(commonSettings: _*).
   settings(
@@ -20,4 +24,4 @@ lazy val s3stream = (project in file("s3-stream")).
   settings(
     name := "s3-stream",
     libraryDependencies ++= s3StreamDeps
-  )
+  ).dependsOn(awsRequests)
