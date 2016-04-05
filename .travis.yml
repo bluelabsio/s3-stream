@@ -3,3 +3,8 @@ scala:
 - 2.11.8
 jdk:
 - oraclejdk8
+after_success:
+- test $TRAVIS_PULL_REQUEST == "false" && test $TRAVIS_BRANCH == "master" && sbt publish
+env:
+  global:
+    secure: BKbOt0lN48+qjvWuu4TeI4BC49uWui3BHbF2pDcw+udQTf5V2mbcXxDDTpk7AV9utGUx4m7bBKRa/kHBdcCH55tTiE5GXZQQhGEdykn+F1GzoFKdFf1hKTLjQRIHsgqnTTgNvYzT9ZaWTRVGLoqL1zdOnp5vj6nXT+QXJwtwdpRDrOF1+S/UQhtJkLxfZSc14vj3Zld7A5Hl6GgpfhMw8vmNHQrivxWSlxZiUJ9Oez2gYmjW+HwH9YzPQHbOQbVSvwCqHjz/9jF+v2cjgjkVhhDztJdeuUt/Oh7LZgxF41J9ASuwk0K5pRoztpZPZfOzAvBmdjG8PlyuLM60UPAFZWXVHJ/txqFVKTypozgu5WmtyMhpfkyndftQIlax/WpKb+DQKOGOXGP9B972OeNFgM9PeaV4iJjIdM5Du9/XUHTwcYw/t9bbqt3HJ21BR1W6JvkOf9/N33RMe+XvBgVkwgEV/Ecb98uqjgiK4+CA+sCpzblhs4aEVg2h+ooeJF2aZAIoCUAd92W4eAKNxkrjlEIWrztRcyDg7OBhYgdhaOv67t4NWpMzKlDu7az2rGJrRPtcrBMsjdd2Ey3GDXs5kCmuBj4zOL6Ejh4xTBQH6EF/37CF7PchInSfZD1eBhGkqcl8v9sSDRVF8q0nURQ22mzt88ct09uCzCcThUqWmZQ=
