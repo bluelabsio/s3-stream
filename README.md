@@ -9,6 +9,16 @@ A library built around Akka-Http to stream an upload to S3. The initialization r
 
 ### Usage
 
+Add to your `build.sbt`:
+
+```
+resolvers += Resolver.bintrayRepo("bluelabsio", "maven")
+
+libraryDependencies += "com.bluelabs" %% "s3-stream" % "0.0.1"
+```
+
+Then in your application:
+
 ```scala
 
   implicit val system = ActorSystem()
@@ -31,6 +41,16 @@ Sign Akka-HTTP requests using AWS credentials, following the
 [AWS Signature v4](http://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-authenticating-requests.html) process.
 
 ### Usage
+
+Add to your `build.sbt`:
+
+```
+resolvers += Resolver.bintrayRepo("bluelabsio", "maven")
+
+libraryDependencies += "com.bluelabs" %% "akka-http-aws" % "0.0.1"
+```
+
+Then in your application:
 
 ```scala
 
