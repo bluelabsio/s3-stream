@@ -16,6 +16,7 @@ lazy val commonSettings = Seq(
 
 lazy val doNotPublishSettings = Seq(
   publish := {},
+  bintrayRelease := {},
   packagedArtifacts := Map.empty
 )
 
