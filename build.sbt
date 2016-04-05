@@ -8,7 +8,10 @@ lazy val commonSettings = Seq(
   scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature"),
   bintrayReleaseOnPublish in ThisBuild := false,
   bintrayOrganization := Some("bluelabsio"),
-  licenses += ("MIT", url("http://opensource.org/licenses/MIT"))
+  licenses += ("MIT", url("http://opensource.org/licenses/MIT")),
+  publishMavenStyle := true,
+  publishArtifact := true,
+  publishArtifact in Test := false
 )
 
 lazy val doNotPublishSettings = Seq(
