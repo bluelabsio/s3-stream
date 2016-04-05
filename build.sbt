@@ -3,13 +3,23 @@ import sbt.Keys._
 
 lazy val commonSettings = Seq(
   organization := "com.bluelabs",
-  version := "0.1",
+  version := "0.0.1",
   scalaVersion := "2.11.8",
-  scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature")
+  scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature"),
+  bintrayReleaseOnPublish in ThisBuild := false,
+  bintrayOrganization := Some("bluelabsio"),
+  licenses += ("MIT", url("http://opensource.org/licenses/MIT"))
+)
+
+lazy val doNotPublishSettings = Seq(
+  publish := {},
+  packagedArtifacts := Map.empty
 )
 
 lazy val root = (project in file(".")).
-  settings(commonSettings: _*).
+  settings(
+    doNotPublishSettings: _*
+  ).
   aggregate(s3stream, awsRequests)
 
 lazy val awsRequests = (project in file("akka-http-aws")).
