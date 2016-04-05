@@ -1,11 +1,11 @@
 # s3-stream
 Akka Streaming Client for S3 and Supporting Libraries
 
-Components:
+# Components
 
 ## s3-stream
 
-A library built around Akka-Http to stream an upload to S3.
+A library built around Akka-Http to stream an upload to S3. The initialization request will be sent, incoming stream will be chunked and uploaded, then the completion request is sent.
 
 ### Usage
 
