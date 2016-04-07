@@ -7,7 +7,7 @@ import org.scalatest.{FlatSpec, Matchers}
 class SigningKeySpec extends FlatSpec with Matchers {
   behavior of "A Signing Key"
 
-  val credentials = new AWSCredentials("AKIDEXAMPLE", "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY")
+  val credentials = AWSCredentials("AKIDEXAMPLE", "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY")
 
   val scope = CredentialScope(LocalDate.of(2015,8,30), "us-east-1", "iam")
   val signingKey = SigningKey(credentials, scope)

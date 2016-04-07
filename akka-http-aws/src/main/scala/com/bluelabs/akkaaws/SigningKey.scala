@@ -7,9 +7,6 @@ import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import javax.xml.bind.DatatypeConverter
 
-
-case class AWSCredentials(accessKeyId: String, secretAccessKey: String)
-
 case class CredentialScope(date: LocalDate, awsRegion: String, awsService: String){
   val dateFormat = new SimpleDateFormat("yyyy-MM-dd")
   lazy val formattedDate: String = date.format(DateTimeFormatter.BASIC_ISO_DATE)

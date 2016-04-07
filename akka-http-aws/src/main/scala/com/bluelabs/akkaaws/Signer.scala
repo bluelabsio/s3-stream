@@ -3,7 +3,6 @@ package com.bluelabs.akkaaws
 import java.security.MessageDigest
 import java.time.format.DateTimeFormatter
 import java.time.{ZoneOffset, ZonedDateTime}
-import javax.xml.bind.DatatypeConverter
 
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model.{HttpHeader, HttpRequest}
@@ -22,10 +21,18 @@ object Signer {
     }
 
     hashedBody.map { case hb =>
-      val reqWithHeaders = request.withHeaders(request.headers ++ Seq(RawHeader("x-amz-date", date.format(dateFormatter)), RawHeader("x-amz-content-sha256", hb)))
+      val headersToAdd = Seq(RawHeader("x-amz-date", date.format(dateFormatter)), RawHeader("x-amz-content-sha256", hb)) ++ sessionHeader(key.credentials)
+      val reqWithHeaders = request.withHeaders(request.headers ++ headersToAdd)
       val cr = CanonicalRequest.from(reqWithHeaders)
       val authHeader = authorizationHeader("AWS4-HMAC-SHA256", key, date, cr)
       reqWithHeaders.withHeaders(reqWithHeaders.headers ++ Seq(authHeader))
+    }
+  }
+
+  def sessionHeader(creds: AWSCredentials): Option[HttpHeader] = {
+    creds match {
+      case bc: BasicCredentials => None
+      case AWSSessionCredentials(_, _, sessionToken) => Some(RawHeader("X-Amz-Security-Token", sessionToken))
     }
   }
 
