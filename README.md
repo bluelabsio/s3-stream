@@ -12,7 +12,7 @@ A library built around Akka-Http to stream an upload to S3. The initialization r
 Add to your `build.sbt`:
 
 ```
-libraryDependencies += "com.bluelabs" %% "s3-stream" % "0.0.2"
+libraryDependencies += "com.bluelabs" %% "s3-stream" % "0.0.3"
 ```
 
 Then in your application:
@@ -43,7 +43,7 @@ Sign Akka-HTTP requests using AWS credentials, following the
 Add to your `build.sbt`:
 
 ```
-libraryDependencies += "com.bluelabs" %% "akka-http-aws" % "0.0.2"
+libraryDependencies += "com.bluelabs" %% "akka-http-aws" % "0.0.3"
 ```
 
 Then in your application:
