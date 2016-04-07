@@ -41,6 +41,7 @@ class S3Stream(credentials: AWSCredentials, region: String = "us-east-1")(implic
 
   /**
     * Uploades a stream of ByteStrings to a specified location as a multipart upload.
+    *
     * @param s3Location
     * @param chunkSize
     * @param chunkingParallelism
@@ -56,12 +57,19 @@ class S3Stream(credentials: AWSCredentials, region: String = "us-east-1")(implic
   def initiateMultipartUpload(s3Location: S3Location): Future[MultipartUpload] = {
     implicit val ec = mat.executionContext
     val req = HttpRequests.initiateMultipartUploadRequest(s3Location)
-    for {
+    val response = for {
       signedReq <- Signer.signedRequest(req, signingKey)
       response <- Http().singleRequest(signedReq)
-      upload <- Unmarshal(response.entity).to[MultipartUpload]
     } yield {
-      upload
+      response
+    }
+    response.flatMap {
+      case HttpResponse(status, _, entity, _) if status.isSuccess() => Unmarshal(entity).to[MultipartUpload]
+      case HttpResponse(status, _, entity, _) => {
+        Unmarshal(entity).to[String].flatMap { case err =>
+          Future.failed(new Exception(err))
+        }
+      }
     }
   }
 
@@ -86,6 +94,7 @@ class S3Stream(credentials: AWSCredentials, region: String = "us-east-1")(implic
 
   /**
     * Initiates a multipart upload. Returns a source of the initiated upload with upload part indicess
+    *
     * @param s3Location The s3 location to which to upload to
     * @return
     */
@@ -97,6 +106,7 @@ class S3Stream(credentials: AWSCredentials, region: String = "us-east-1")(implic
 
   /**
     * Transforms a flow of ByteStrings into a flow of HTTPRequests to upload to S3.
+    *
     * @param s3Location
     * @param chunkSize
     * @param parallelism
