@@ -32,7 +32,7 @@ object Signer {
   def sessionHeader(creds: AWSCredentials): Option[HttpHeader] = {
     creds match {
       case bc: BasicCredentials => None
-      case AWSSessionCredentials(_, _, sessionToken) => Some(RawHeader("X-Amz-Security-Token", sessionToken))
+      case sc: SessionCredentials => Some(RawHeader("X-Amz-Security-Token", sc.sessionToken))
     }
   }
 
