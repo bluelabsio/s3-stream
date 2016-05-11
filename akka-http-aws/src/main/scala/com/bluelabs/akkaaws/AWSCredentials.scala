@@ -11,6 +11,7 @@ import akka.stream.scaladsl.Sink
 import akka.util.ByteString
 import fastparse.all._
 
+import scala.language.postfixOps
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContext}
 import scala.io.Source

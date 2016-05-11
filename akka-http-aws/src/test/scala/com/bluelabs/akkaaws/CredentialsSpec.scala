@@ -1,22 +1,35 @@
 package com.bluelabs.akkaaws
 
-import java.time.LocalDate
-
 import akka.actor.ActorSystem
+import akka.http.scaladsl.Http
+import akka.http.scaladsl.model.{HttpMethods, HttpRequest}
 import akka.stream.{ActorMaterializer, ActorMaterializerSettings}
 import akka.testkit.TestKit
-import com.bluelabs.akkaaws
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Millis, Seconds, Span}
-import org.scalatest.{FlatSpec, FlatSpecLike, Matchers}
+import org.scalatest.{FlatSpecLike, Matchers}
+
+import scala.concurrent.{Await, TimeoutException}
+import scala.concurrent.duration._
+import scala.language.postfixOps
 
 class CredentialsSpec(_system: ActorSystem) extends TestKit(_system) with FlatSpecLike with Matchers with ScalaFutures {
   def this() = this(ActorSystem("SignerSpec"))
+
+  def isEC2Instance: Boolean = {
+    // Assume if metadata access is available, we are on an EC2 machine
+    val roleRequest = HttpRequest(HttpMethods.GET, "http://169.254.169.254/latest/meta-data")
+    try {
+      Await.ready(Http().singleRequest(roleRequest), 10 milliseconds)
+      true
+    } catch { case ex: TimeoutException => false}
+  }
 
   implicit val defaultPatience =
     PatienceConfig(timeout =  Span(2, Seconds), interval = Span(5, Millis))
 
   implicit val materializer = ActorMaterializer(ActorMaterializerSettings(system).withDebugLogging(true))
+  implicit val executionContext = system.dispatcher
 
   behavior of "AWS Credential lookups"
 
@@ -51,6 +64,16 @@ class CredentialsSpec(_system: ActorSystem) extends TestKit(_system) with FlatSp
     val controlCredentials = Some(AWSCredentials("AKIAIOSFODNN7EXAMPLE", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"))
     val testCredentials = AWSCredentials.getJavaPropertyCredentials
     testCredentials shouldBe controlCredentials
+  }
+
+  if (isEC2Instance) {
+    it should "retrieve instance metadata role and credentials" in {
+      val credentials = AWSCredentials.getEC2InstanceCredentials()
+      println(credentials)
+      credentials shouldBe Some
+      credentials.get.accessKeyId.length shouldBe 20
+      credentials.get.secretAccessKey.length shouldBe 40
+    }
   }
 
 }
