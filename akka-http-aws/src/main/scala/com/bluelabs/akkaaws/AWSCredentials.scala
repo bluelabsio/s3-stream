@@ -5,7 +5,7 @@ import java.time.{ZoneId, ZonedDateTime}
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.{HttpMethods, HttpRequest}
+import akka.http.scaladsl.model.{HttpMethods, HttpRequest, StatusCodes}
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Sink
 import akka.util.ByteString
@@ -150,7 +150,7 @@ case class SessionCredentials(role: Option[String], timeout: FiniteDuration = 30
       }
 
       override def read(json: JsValue): ZonedDateTime = {
-        ZonedDateTime.parse(json.asJsObject.convertTo[String])
+        ZonedDateTime.parse(json.convertTo[String])
       }
     }
 
@@ -161,12 +161,15 @@ case class SessionCredentials(role: Option[String], timeout: FiniteDuration = 30
 
   private def getEC2Role(implicit ec: ExecutionContext, s: ActorSystem, m: ActorMaterializer) : Some[String] = {
     val roleRequest = HttpRequest(HttpMethods.GET, "http://169.254.169.254/latest/meta-data/iam/info")
-    val roleRequestFuture = Http().singleRequest(roleRequest).flatMap{response =>
-      response.entity.dataBytes
-        .fold(ByteString.empty)(_ ++ _)
-        .map(_.utf8String.parseJson.convertTo[InstanceProfileName])
-        .map(ipn => Some(ipn.InstanceProfileArn))
-        .runWith(Sink.head)
+    val roleRequestFuture = Http().singleRequest(roleRequest).flatMap{
+      case response if response.status == StatusCodes.OK =>
+        response.entity.dataBytes
+          .fold(ByteString.empty)(_ ++ _)
+          .map(_.utf8String.parseJson.convertTo[InstanceProfileName])
+          .map(ipn => Some(ipn.InstanceProfileArn.split('/').last))
+          .runWith(Sink.head)
+      case fail =>
+        throw new RuntimeException("Failed to get the role for this machine")
     }
     Await.result(roleRequestFuture, timeout)
   }
@@ -176,11 +179,14 @@ case class SessionCredentials(role: Option[String], timeout: FiniteDuration = 30
                                             (implicit ec: ExecutionContext, s: ActorSystem, m: ActorMaterializer) : CredentialResponse = {
     val credentialURI = s"""http://169.254.169.254/latest/meta-data/iam/security-credentials/$role"""
     val credentialRequest = HttpRequest(method = HttpMethods.GET, uri = credentialURI)
-    val credentialFuture = Http().singleRequest(credentialRequest).flatMap{ response =>
-      response.entity.dataBytes
-        .fold(ByteString.empty)(_ ++ _)
-        .map(_.utf8String.toJson.convertTo[CredentialResponse])
-        .runWith(Sink.head)
+    val credentialFuture = Http().singleRequest(credentialRequest).flatMap {
+      case response if response.status == StatusCodes.OK =>
+        response.entity.dataBytes
+          .fold(ByteString.empty)(_ ++ _)
+          .map(_.utf8String.parseJson.convertTo[CredentialResponse])
+          .runWith(Sink.head)
+      case fail =>
+        throw new RuntimeException("Failed to get credentials from metadata")
     }
 
     // I know... Await is bad. However, this will only be called once at startup, then every 24 hours afterwards

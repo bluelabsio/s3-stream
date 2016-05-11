@@ -68,11 +68,15 @@ class CredentialsSpec(_system: ActorSystem) extends TestKit(_system) with FlatSp
 
   if (isEC2Instance) {
     it should "retrieve instance metadata role and credentials" in {
-      val credentials = AWSCredentials.getEC2InstanceCredentials()
-      println(credentials)
-      credentials shouldBe Some
-      credentials.get.accessKeyId.length shouldBe 20
-      credentials.get.secretAccessKey.length shouldBe 40
+      AWSCredentials.getEC2InstanceCredentials() match {
+        case Some(credentials: SessionCredentials) =>
+          credentials.accessKeyId.length shouldBe 20
+          credentials.secretAccessKey.length shouldBe 40
+        case Some(credentials: BasicCredentials) =>
+          fail("Expected to get SessionCredentials")
+        case None =>
+          fail("Expected to get SessionCredentials")
+      }
     }
   }
 
