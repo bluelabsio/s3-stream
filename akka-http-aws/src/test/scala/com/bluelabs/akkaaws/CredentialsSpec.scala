@@ -18,7 +18,7 @@ class CredentialsSpec(_system: ActorSystem) extends TestKit(_system) with FlatSp
 
   def isEC2Instance: Boolean = {
     // Assume if metadata access is available, we are on an EC2 machine
-    val roleRequest = HttpRequest(HttpMethods.GET, "http://169.254.169.254/latest/meta-data")
+    val roleRequest = HttpRequest(HttpMethods.GET, "http://169.254.169.254/latest/meta-data/ami-id")
     try {
       Await.ready(Http().singleRequest(roleRequest), 800 milliseconds)
       true
