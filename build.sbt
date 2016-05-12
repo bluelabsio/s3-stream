@@ -27,7 +27,9 @@ lazy val root = (project in file(".")).
   aggregate(s3stream, awsRequests)
 
 lazy val awsRequests = (project in file("akka-http-aws")).
+  configs(IntegrationTest).
   settings(commonSettings: _*).
+  settings(Defaults.itSettings: _*).
   settings(
     name := "akka-http-aws",
     libraryDependencies ++= awsSignatureDeps

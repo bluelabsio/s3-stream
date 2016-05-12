@@ -23,7 +23,7 @@ object Dependencies {
   val fastparse = "com.lihaoyi" %% "fastparse" % "0.3.7"
 
   val awsSignatureDeps = Seq(akkaHttpCore, logback, scalaLogging, fastparse, sprayJson,
-    scalatest % Test, akkaStreamTestkit % Test)
+    scalatest % "it,test", akkaStreamTestkit % "it,test")
 
   val s3StreamDeps = Seq(akkaHttpCore, akkaStream, akkaHttpExperimental, akkaHttpXML,
     akkaTestkit % Test, akkaStreamTestkit % Test, scalatest % Test)
