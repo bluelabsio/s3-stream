@@ -204,8 +204,9 @@ case class SessionCredentials(role: Option[String], timeout: FiniteDuration = 30
   private var credentials: CredentialResponse = getInstanceSecurityCredentials(instanceRole)
 
   def isExpired: Boolean = {
-    val expirationTime = ZonedDateTime.now(ZoneId.of("UTC")).minusMinutes(5)
-    credentials.Expiration.isAfter(expirationTime)
+    // Refresh the credentials 5 minutes before they expire
+    val now = ZonedDateTime.now(ZoneId.of("UTC"))
+    credentials.Expiration.isBefore(now.plusMinutes(5))
   }
 
   override def accessKeyId: String = {
