@@ -3,15 +3,12 @@ package com.bluelabs.akkaaws
 import java.time.{ZoneId, ZonedDateTime}
 
 import akka.actor.ActorSystem
-import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.{HttpMethods, HttpRequest}
 import akka.stream.{ActorMaterializer, ActorMaterializerSettings}
 import akka.testkit.TestKit
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Millis, Seconds, Span}
 import org.scalatest.{FlatSpecLike, Matchers}
 
-import scala.concurrent.{Await, TimeoutException}
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
@@ -27,7 +24,7 @@ class CredentialRefreshSpec(_system: ActorSystem) extends TestKit(_system) with 
   behavior of "EC2 Refreshing Credentials"
 
   it should "refresh automatically after it expires" in {
-    AWSCredentials.getEC2InstanceCredentials() match {
+    AWSCredentials.getEC2InstanceCredentials(timeout = 2 seconds) match {
       case Some(credentials: SessionCredentials) =>
         val originalToken = credentials.sessionToken
         // Loop until we get a new token, indicating that the credentials were refreshed
