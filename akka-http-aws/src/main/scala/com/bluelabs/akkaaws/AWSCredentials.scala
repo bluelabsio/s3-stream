@@ -169,7 +169,7 @@ case class SessionCredentials(role: Option[String], timeout: FiniteDuration = 30
           .map(ipn => Some(ipn.InstanceProfileArn.split('/').last))
           .runWith(Sink.head)
       case fail =>
-        throw new RuntimeException("Failed to get the role for this machine")
+        throw AWSCredentialLookupFailure("Failed to get the role for this machine")
     }
     Await.result(roleRequestFuture, timeout)
   }
@@ -186,7 +186,7 @@ case class SessionCredentials(role: Option[String], timeout: FiniteDuration = 30
           .map(_.utf8String.parseJson.convertTo[CredentialResponse])
           .runWith(Sink.head)
       case fail =>
-        throw new RuntimeException("Failed to get credentials from metadata")
+        throw AWSCredentialLookupFailure("Failed to get credentials from metadata")
     }
 
     // I know... Await is bad. However, this will only be called once at startup, then every 24 hours afterwards
