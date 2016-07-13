@@ -4,14 +4,17 @@ import akka.http.scaladsl.marshallers.xml.ScalaXmlSupport._
 import akka.http.scaladsl.marshalling.Marshal
 import akka.http.scaladsl.model.Uri.Query
 import akka.http.scaladsl.model.headers.Host
+import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model.{HttpMethods, HttpRequest, RequestEntity, Uri}
 import akka.util.ByteString
 
 import scala.concurrent.{ExecutionContext, Future}
 
 object HttpRequests {
-  def initiateMultipartUploadRequest(s3Location: S3Location): HttpRequest = {
-    HttpRequest(method = HttpMethods.POST)
+  def initiateMultipartUploadRequest(s3Location: S3Location, metadata: Metadata): HttpRequest = {
+    val contentType = RawHeader("Content-Type", metadata.contentType)
+
+    HttpRequest(method = HttpMethods.POST, headers = List(contentType))
       .withHeaders(Host(requestHost(s3Location)))
       .withUri(requestUri(s3Location).withQuery(Query("uploads")))
   }
