@@ -1,32 +1,35 @@
 package com.bluelabs.s3stream
 
-import scala.concurrent.{ ExecutionContext, Future }
 
+import scala.concurrent.{ExecutionContext, Future}
 import akka.http.scaladsl.marshallers.xml.ScalaXmlSupport._
 import akka.http.scaladsl.marshalling.Marshal
-import akka.http.scaladsl.model.{HttpMethods, HttpRequest, RequestEntity, Uri}
+import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.Uri.Query
 import akka.http.scaladsl.model.headers.Host
 import akka.util.ByteString
 
 object HttpRequests {
-  def initiateMultipartUploadRequest(s3Location: S3Location): HttpRequest = {
-    HttpRequest(method = HttpMethods.POST)
+
+  def s3Request(s3Location: S3Location, method: HttpMethod = HttpMethods.GET, uriFn: (Uri => Uri) = identity): HttpRequest = {
+    HttpRequest(method = HttpMethods.GET)
       .withHeaders(Host(requestHost(s3Location)))
-      .withUri(requestUri(s3Location).withQuery(Query("uploads")))
+      .withUri(uriFn(requestUri(s3Location)))
+  }
+
+  def initiateMultipartUploadRequest(s3Location: S3Location): HttpRequest = {
+    s3Request(s3Location, HttpMethods.POST, _.withQuery(Query("uploads")))
   }
   
   def getRequest(s3Location: S3Location): HttpRequest = {
-    HttpRequest(method = HttpMethods.GET)
-      .withHeaders(Host(requestHost(s3Location)))
-      .withUri(requestUri(s3Location))
+    s3Request(s3Location)
   }
 
   def uploadPartRequest(upload: MultipartUpload, partNumber: Int, payload: ByteString): HttpRequest = {
-    HttpRequest(method = HttpMethods.PUT)
-      .withHeaders(Host(requestHost(upload.s3Location)))
-      .withUri(requestUri(upload.s3Location).withQuery(Query("partNumber" -> partNumber.toString, "uploadId" -> upload.uploadId)))
-      .withEntity(payload)
+    s3Request(upload.s3Location,
+              HttpMethods.PUT,
+              _.withQuery(Query("partNumber" -> partNumber.toString, "uploadId" -> upload.uploadId))
+    ).withEntity(payload)
   }
 
   def completeMultipartUploadRequest(upload: MultipartUpload, parts: Seq[(Int, String)])(implicit ec: ExecutionContext): Future[HttpRequest] = {
@@ -38,10 +41,10 @@ object HttpRequests {
     for {
       entity <- Marshal(payload).to[RequestEntity]
     } yield {
-      HttpRequest(method = HttpMethods.POST)
-        .withHeaders(Host(requestHost(upload.s3Location)))
-        .withUri(requestUri(upload.s3Location).withQuery(Query("uploadId" -> upload.uploadId)))
-        .withEntity(entity)
+      s3Request(upload.s3Location,
+                HttpMethods.POST,
+                _.withQuery(Query("uploadId" -> upload.uploadId))
+      ).withEntity(entity)
     }
   }
 
