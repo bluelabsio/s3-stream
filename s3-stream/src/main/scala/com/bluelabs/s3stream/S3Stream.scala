@@ -57,14 +57,16 @@ class S3Stream(credentials: AWSCredentials, region: String = "us-east-1")(implic
     * @return
     */
   def multipartUpload(s3Location: S3Location, chunkSize: Int = MIN_CHUNK_SIZE, chunkingParallelism: Int = 4): Sink[ByteString, Future[CompleteMultipartUploadResult]] = {
-    implicit val ec =  mat.executionContext
+    import mat.executionContext
+
     chunkAndRequest(s3Location, chunkSize)(chunkingParallelism)
       .log("s3-upload-response").withAttributes(Attributes.logLevels(onElement = Logging.DebugLevel, onFailure = Logging.WarningLevel, onFinish = Logging.InfoLevel))
       .toMat(completionSink(s3Location))(Keep.right)
   }
 
   def initiateMultipartUpload(s3Location: S3Location): Future[MultipartUpload] = {
-    implicit val ec = mat.executionContext
+    import mat.executionContext
+
     val req = HttpRequests.initiateMultipartUploadRequest(s3Location)
     val response = for {
       signedReq <- Signer.signedRequest(req, signingKey)
@@ -134,7 +136,7 @@ class S3Stream(credentials: AWSCredentials, region: String = "us-east-1")(implic
   }
 
   def completionSink(s3Location: S3Location): Sink[UploadPartResponse, Future[CompleteMultipartUploadResult]] = {
-    implicit val ec =  mat.executionContext
+    import mat.executionContext
 
     Sink.seq[UploadPartResponse].mapMaterializedValue { case responseFuture: Future[Seq[UploadPartResponse]] =>
       responseFuture.flatMap { case responses: Seq[UploadPartResponse] =>
