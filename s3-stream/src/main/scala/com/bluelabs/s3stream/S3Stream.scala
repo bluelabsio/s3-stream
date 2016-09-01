@@ -33,6 +33,8 @@ case class FailedUploadPart(multipartUpload: MultipartUpload, index: Int, except
 case class FailedUpload(reasons: Seq[Throwable]) extends Exception
 case class CompleteMultipartUploadResult(location: Uri, bucket: String, key: String, etag: String)
 
+class UploadFailedException(msg: String) extends RuntimeException(msg)
+
 class S3Stream(credentials: AWSCredentials, region: String = "us-east-1")(implicit system: ActorSystem, mat: Materializer) {
   import Marshalling._
 
@@ -149,6 +151,29 @@ class S3Stream(credentials: AWSCredentials, region: String = "us-east-1")(implic
           Future.failed(FailedUpload(failures.map(_.exception)))
         }
       }.flatMap(completeMultipartUpload(s3Location, _))
+    }
+  }
+
+  /**
+    * Upload an object to S3 directly. For small uploads, this requires a lot fewer round-trips than a multipart upload.
+    * @param s3Location Location in S3 to put the object
+    * @param data The data to upload
+    * @param md5 An optional MD5 hash of the data, used to prevent errors during upload.
+    * @return An empty string on success, an exception on failure
+    */
+  def putObject(s3Location: S3Location, data: ByteString, md5: Option[String] = None): Future[String] = {
+    import mat.executionContext
+
+    val req = HttpRequests.putObject(s3Location, data, md5)
+    println(s"Sending $req")
+    Signer.signedRequest(req, signingKey)
+      .flatMap(signedRequest => Http().singleRequest(signedRequest))
+      .flatMap {
+        case HttpResponse(status, _, entity, _) if status.isSuccess() =>
+          Unmarshal(entity).to[String]
+        case response =>
+          response.discardEntityBytes()
+          Future.failed(new UploadFailedException(s"putObject returned ${response.status}"))
     }
   }
 
