@@ -3,7 +3,7 @@ package com.bluelabs.s3stream
 import akka.http.scaladsl.marshallers.xml.ScalaXmlSupport._
 import akka.http.scaladsl.marshalling.Marshal
 import akka.http.scaladsl.model.Uri.Query
-import akka.http.scaladsl.model.headers.Host
+import akka.http.scaladsl.model.headers.{Host, RawHeader}
 import akka.http.scaladsl.model.{HttpMethods, HttpRequest, RequestEntity, Uri}
 import akka.util.ByteString
 
@@ -37,6 +37,16 @@ object HttpRequests {
         .withUri(requestUri(upload.s3Location).withQuery(Query("uploadId" -> upload.uploadId)))
         .withEntity(entity)
     }
+  }
+
+  def putObject[T](s3Location: S3Location, data: ByteString, md5: Option[String] = None): HttpRequest = {
+    val headers = if (md5.isDefined)
+      List(Host(requestHost(s3Location)), RawHeader("Content-MD5", md5.get))
+    else
+      List(Host(requestHost(s3Location)))
+    HttpRequest(method = HttpMethods.PUT, headers = headers)
+      .withUri(requestUri(s3Location))
+      .withEntity(data)
   }
 
 
