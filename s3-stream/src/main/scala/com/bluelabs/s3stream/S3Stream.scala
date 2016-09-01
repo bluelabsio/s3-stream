@@ -2,20 +2,23 @@ package com.bluelabs.s3stream
 
 import java.time.LocalDate
 
+import scala.collection.immutable.Seq
+import scala.concurrent.ExecutionContext
+import scala.concurrent.Future
+import scala.util.{ Failure, Success }
+
+import com.bluelabs.akkaaws.{AWSCredentials, CredentialScope, Signer, SigningKey}
+
 import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.event.Logging
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.unmarshalling.Unmarshal
-import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
+import akka.http.scaladsl.unmarshalling.Unmarshaller
 import akka.stream.{Attributes, Materializer}
+import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.util.ByteString
-import com.bluelabs.akkaaws.{AWSCredentials, CredentialScope, Signer, SigningKey}
-
-import scala.collection.immutable.Seq
-import scala.concurrent.Future
-import scala.util.{Failure, Success}
 
 case class S3Location(bucket: String, key: String)
 
@@ -41,6 +44,12 @@ class S3Stream(credentials: AWSCredentials, region: String = "us-east-1")(implic
   val MIN_CHUNK_SIZE = 5242880
   val signingKey = SigningKey(credentials, CredentialScope(LocalDate.now(), region, "s3"))
 
+  def download(s3Location: S3Location): Source[ByteString, NotUsed] = {
+    import mat.executionContext
+    Source.fromFuture(signAndGet(HttpRequests.getRequest(s3Location)).map(_.dataBytes))
+          .flatMapConcat(identity)
+  }
+  
   /**
     * uploads a stream of ByteStrings to a specified location as a multipart upload.
     *
@@ -76,22 +85,12 @@ class S3Stream(credentials: AWSCredentials, region: String = "us-east-1")(implic
   }
 
   def completeMultipartUpload(s3Location: S3Location, parts: Seq[SuccessfulUploadPart]): Future[CompleteMultipartUploadResult] = {
-    implicit val ec = mat.executionContext
-    val response: Future[HttpResponse] = for {
-      req <- HttpRequests.completeMultipartUploadRequest(parts.head.multipartUpload, parts.map { case p => (p.index, p.etag) })
-      signedReq <- Signer.signedRequest(req, signingKey)
-      response <- Http().singleRequest(signedReq)
-    } yield {
-      response
-    }
-
-    response.flatMap {
-      case HttpResponse(status, _, entity, _) if status.isSuccess() => {
-        Unmarshal(entity).to[CompleteMultipartUploadResult]
-      }
-      case HttpResponse(status, _, entity, _) =>
-        Unmarshal(entity).to[String].flatMap{ case e => Future.failed(new Exception(e)) }
-    }
+    import mat.executionContext
+    
+    for (
+        req <- HttpRequests.completeMultipartUploadRequest(parts.head.multipartUpload, parts.map { case p => (p.index, p.etag) });
+        res <- signAndGetAs[CompleteMultipartUploadResult](req)
+    ) yield res
   }
 
   /**
@@ -154,7 +153,32 @@ class S3Stream(credentials: AWSCredentials, region: String = "us-east-1")(implic
     }
   }
 
-  /**
+  private def signAndGetAs[T](request: HttpRequest)(implicit um: Unmarshaller[ResponseEntity, T]): Future[T] = {
+    import mat.executionContext
+    signAndGet(request).flatMap(entity => Unmarshal(entity).to[T])
+  }
+
+  private def signAndGet(request: HttpRequest): Future[ResponseEntity] = {
+    import mat.executionContext
+    for (
+      req <- Signer.signedRequest(request, signingKey);
+      res <- Http().singleRequest(req);
+      t <- entityForSuccess(res)
+    ) yield t
+  }
+
+  private def entityForSuccess(resp: HttpResponse)(implicit ctx: ExecutionContext): Future[ResponseEntity] = {
+    resp match {
+      case HttpResponse(status, _, entity, _) if status.isSuccess() => Future.successful(entity)
+      case HttpResponse(status, _, entity, _) => {
+        Unmarshal(entity).to[String].flatMap { case err =>
+          Future.failed(new Exception(err))
+        }
+      }
+    }
+  }
+
+ /**
     * Upload an object to S3 directly. For small uploads, this requires a lot fewer round-trips than a multipart upload.
     * @param s3Location Location in S3 to put the object
     * @param data The data to upload
@@ -176,5 +200,4 @@ class S3Stream(credentials: AWSCredentials, region: String = "us-east-1")(implic
           Future.failed(new UploadFailedException(s"putObject returned ${response.status}"))
     }
   }
-
 }
