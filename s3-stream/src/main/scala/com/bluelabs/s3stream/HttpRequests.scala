@@ -12,7 +12,7 @@ import akka.util.ByteString
 object HttpRequests {
 
   def s3Request(s3Location: S3Location, method: HttpMethod = HttpMethods.GET, uriFn: (Uri => Uri) = identity): HttpRequest = {
-    HttpRequest(method = HttpMethods.GET)
+    HttpRequest(method)
       .withHeaders(Host(requestHost(s3Location)))
       .withUri(uriFn(requestUri(s3Location)))
   }
