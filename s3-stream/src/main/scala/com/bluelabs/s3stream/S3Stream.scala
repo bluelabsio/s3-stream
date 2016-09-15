@@ -44,7 +44,7 @@ class S3Stream(credentials: AWSCredentials, region: String = "us-east-1")(implic
   val MIN_CHUNK_SIZE = 5242880
   val signingKey = SigningKey(credentials, CredentialScope(LocalDate.now(), region, "s3"))
 
-  def download(s3Location: S3Location): Source[ByteString, NotUsed] = {
+  def getObject(s3Location: S3Location): Source[ByteString, NotUsed] = {
     import mat.executionContext
     Source.fromFuture(signAndGet(HttpRequests.getRequest(s3Location)).map(_.dataBytes))
           .flatMapConcat(identity)
