@@ -56,7 +56,7 @@ object HttpRequests {
   }
 
 
-  def requestHost(s3Location: S3Location): Uri.Host = Uri.Host(s"${s3Location.bucket}.s3.amazonaws.com")
+  def requestHost(s3Location: S3Location): Uri.Host = Uri.Host("s3.amazonaws.com")
 
-  def requestUri(s3Location: S3Location): Uri = Uri(s"/${s3Location.key}").withHost(requestHost(s3Location)).withScheme("https")
+  def requestUri(s3Location: S3Location): Uri = Uri(s"/${s3Location.bucket}/${s3Location.key}").withHost(requestHost(s3Location)).withScheme("https")
 }
