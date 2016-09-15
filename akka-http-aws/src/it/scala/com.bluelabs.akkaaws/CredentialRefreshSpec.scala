@@ -25,7 +25,7 @@ class CredentialRefreshSpec(_system: ActorSystem) extends TestKit(_system) with 
 
   it should "refresh automatically after it expires" in {
     AWSCredentials.getEC2InstanceCredentials(timeout = 2 seconds) match {
-      case Some(credentials: SessionCredentials) =>
+      case Some(credentials: RoleCredentials) =>
         val originalToken = credentials.sessionToken
         // Loop until we get a new token, indicating that the credentials were refreshed
         println(s"Starting refresh test at ${ZonedDateTime.now(ZoneId.of("UTC"))}")

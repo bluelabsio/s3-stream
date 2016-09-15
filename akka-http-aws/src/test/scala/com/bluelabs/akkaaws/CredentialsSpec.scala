@@ -69,7 +69,7 @@ class CredentialsSpec(_system: ActorSystem) extends TestKit(_system) with FlatSp
   if (isEC2Instance) {
     it should "retrieve instance metadata role and credentials" in {
       AWSCredentials.getEC2InstanceCredentials() match {
-        case Some(credentials: SessionCredentials) =>
+        case Some(credentials: RoleCredentials) =>
           credentials.accessKeyId.length shouldBe 20
           credentials.secretAccessKey.length shouldBe 40
         case Some(credentials: BasicCredentials) =>

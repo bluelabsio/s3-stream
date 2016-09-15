@@ -22,6 +22,7 @@ sealed trait AWSCredentials {
 }
 
 case class BasicCredentials(accessKeyId: String, secretAccessKey: String) extends AWSCredentials
+case class SessionCredentials(accessKeyId: String, secretAccessKey: String, securityToken: String) extends AWSCredentials
 
 case class AWSCredentialLookupFailure(msg: String) extends RuntimeException(msg)
 
@@ -108,7 +109,7 @@ object AWSCredentials {
   def getEC2InstanceCredentials(role: Option[String] = None, timeout: FiniteDuration = 300 milliseconds)
                                (implicit ec: ExecutionContext, s: ActorSystem, m: ActorMaterializer): Option[AWSCredentials] = {
     try {
-      Some(SessionCredentials(role, timeout))
+      Some(RoleCredentials(role, timeout))
     } catch {
       case ex: ParseError => None
     }
@@ -136,8 +137,8 @@ object AWSCredentials {
 /**
   * Self-refreshing credentials obtained from an EC2 instance's metadata
   */
-case class SessionCredentials(role: Option[String], timeout: FiniteDuration = 300 milliseconds)
-                            (implicit ec: ExecutionContext, s: ActorSystem, m: ActorMaterializer) extends AWSCredentials {
+case class RoleCredentials(role: Option[String], timeout: FiniteDuration = 300 milliseconds)
+                          (implicit ec: ExecutionContext, s: ActorSystem, m: ActorMaterializer) extends AWSCredentials {
   private case class CredentialResponse(AccessKeyId: String, SecretAccessKey: String, Token: String, Expiration: ZonedDateTime)
   private case class InstanceProfileName(InstanceProfileArn: String)
 
