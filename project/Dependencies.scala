@@ -2,7 +2,7 @@ import sbt._
 
 object Dependencies {
   // Versions
-  lazy val akkaVersion = "2.4.9"
+  lazy val akkaVersion = "2.4.10"
   lazy val scalatestVersion = "2.2.6"
 
   val akka = "com.typesafe.akka" %% "akka-actor" % akkaVersion
