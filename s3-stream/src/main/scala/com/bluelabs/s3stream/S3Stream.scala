@@ -2,23 +2,40 @@ package com.bluelabs.s3stream
 
 import java.time.LocalDate
 
+import scala.annotation.elidable
+import scala.annotation.elidable.ASSERTION
 import scala.collection.immutable.Seq
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
-import scala.util.{ Failure, Success }
+import scala.util.Failure
+import scala.util.Success
 
-import com.bluelabs.akkaaws.{AWSCredentials, CredentialScope, Signer, SigningKey}
+import com.bluelabs.akkaaws.AWSCredentials
+import com.bluelabs.akkaaws.CredentialScope
+import com.bluelabs.akkaaws.Signer
+import com.bluelabs.akkaaws.SigningKey
 
 import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.event.Logging
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.HttpRequest
+import akka.http.scaladsl.model.HttpResponse
+import akka.http.scaladsl.model.ResponseEntity
+import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.http.scaladsl.unmarshalling.Unmarshaller
-import akka.stream.{Attributes, Materializer}
-import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
+import akka.stream.Attributes
+import akka.stream.Materializer
+import akka.stream.scaladsl.Flow
+import akka.stream.scaladsl.Keep
+import akka.stream.scaladsl.Sink
+import akka.stream.scaladsl.Source
 import akka.util.ByteString
+import akka.stream.stage.GraphStage
+import akka.stream.FlowShape
+import java.nio.file.Path
+import java.nio.file.Paths
 
 case class S3Location(bucket: String, key: String)
 
@@ -57,7 +74,6 @@ class S3Stream(credentials: AWSCredentials, region: String = "us-east-1")(implic
     * @return
     */
   def multipartUpload(s3Location: S3Location, chunkSize: Int = MIN_CHUNK_SIZE, chunkingParallelism: Int = 4): Sink[ByteString, Future[CompleteMultipartUploadResult]] = {
-    import mat.executionContext
 
     chunkAndRequest(s3Location, chunkSize)(chunkingParallelism)
       .log("s3-upload-response").withAttributes(Attributes.logLevels(onElement = Logging.DebugLevel, onFailure = Logging.WarningLevel, onFinish = Logging.InfoLevel))
@@ -78,7 +94,7 @@ class S3Stream(credentials: AWSCredentials, region: String = "us-east-1")(implic
       case HttpResponse(status, _, entity, _) if status.isSuccess() => Unmarshal(entity).to[MultipartUpload]
       case HttpResponse(status, _, entity, _) => {
         Unmarshal(entity).to[String].flatMap { case err =>
-          Future.failed(new Exception(err))
+          Future.failed(new Exception("Can't initiate upload: " + err))
         }
       }
     }
@@ -116,10 +132,22 @@ class S3Stream(credentials: AWSCredentials, region: String = "us-east-1")(implic
   def createRequests(s3Location: S3Location, chunkSize: Int = MIN_CHUNK_SIZE, parallelism: Int = 4): Flow[ByteString, (HttpRequest, (MultipartUpload, Int)), NotUsed] = {
     assert(chunkSize >= MIN_CHUNK_SIZE, "Chunk size must be at least 5242880B. See http://docs.aws.amazon.com/AmazonS3/latest/API/mpUploadUploadPart.html")
     val requestInfo: Source[(MultipartUpload, Int), NotUsed] = initiateUpload(s3Location)
-    Flow[ByteString]
-      .via(new Chunker(chunkSize))
-      .zipWith(requestInfo){case (payload, (uploadInfo, chunkIndex)) => (HttpRequests.uploadPartRequest(uploadInfo, chunkIndex, payload), (uploadInfo, chunkIndex))}
+    
+    SplitAfterSize(chunkSize)(Flow.apply[ByteString])
+      .via(getChunkBuffer(chunkSize))
+      .concatSubstreams
+      .zipWith(requestInfo){case (payload, (uploadInfo, chunkIndex)) => (HttpRequests.uploadPartRequest(uploadInfo, chunkIndex, payload.data, payload.size), (uploadInfo, chunkIndex))}
       .mapAsync(parallelism){case (req, info) => Signer.signedRequest(req, signingKey).zip(Future.successful(info)) }
+  }
+  
+  private def getChunkBuffer(chunkSize: Int) = system.settings.config.getString("com.bluelabs.s3stream.buffer") match {
+    case "memory" => new MemoryBuffer(chunkSize * 2)
+    case "disk" => new DiskBuffer(2, chunkSize * 2, getDiskBufferPath)
+  }
+  
+  private val getDiskBufferPath = system.settings.config.getString("com.bluelabs.s3stream.disk-buffer-path") match {
+    case "" => None
+    case s => Some(Paths.get(s))
   }
 
   def chunkAndRequest(s3Location: S3Location, chunkSize: Int = MIN_CHUNK_SIZE)(parallelism: Int = 4): Flow[ByteString, UploadPartResponse, NotUsed] = {
@@ -172,7 +200,7 @@ class S3Stream(credentials: AWSCredentials, region: String = "us-east-1")(implic
       case HttpResponse(status, _, entity, _) if status.isSuccess() => Future.successful(entity)
       case HttpResponse(status, _, entity, _) => {
         Unmarshal(entity).to[String].flatMap { case err =>
-          Future.failed(new Exception(err))
+          Future.failed(new Exception("Error: " + err))
         }
       }      
     }

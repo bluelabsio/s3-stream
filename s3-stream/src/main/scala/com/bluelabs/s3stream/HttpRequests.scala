@@ -8,6 +8,9 @@ import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.Uri.Query
 import akka.http.scaladsl.model.headers.Host
 import akka.util.ByteString
+import akka.stream.scaladsl.Source
+import akka.http.scaladsl.model.RequestEntity
+import akka.http.scaladsl.model.RequestEntity
 
 object HttpRequests {
 
@@ -25,11 +28,11 @@ object HttpRequests {
     s3Request(s3Location)
   }
 
-  def uploadPartRequest(upload: MultipartUpload, partNumber: Int, payload: ByteString): HttpRequest = {
+  def uploadPartRequest(upload: MultipartUpload, partNumber: Int, payload: Source[ByteString,_], payloadSize: Int): HttpRequest = {
     s3Request(upload.s3Location,
               HttpMethods.PUT,
               _.withQuery(Query("partNumber" -> partNumber.toString, "uploadId" -> upload.uploadId))
-    ).withEntity(payload)
+    ).withEntity(HttpEntity(ContentTypes.`application/octet-stream`, payloadSize, payload))
   }
 
   def completeMultipartUploadRequest(upload: MultipartUpload, parts: Seq[(Int, String)])(implicit ec: ExecutionContext): Future[HttpRequest] = {
