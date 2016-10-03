@@ -1,13 +1,16 @@
 package com.bluelabs.s3stream
 
+import com.bluelabs.akkaaws.AwsHeaders.ServerSideEncryptionAlgorithm.{KMS, AES256}
 
+import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}
 import akka.http.scaladsl.marshallers.xml.ScalaXmlSupport._
 import akka.http.scaladsl.marshalling.Marshal
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.Uri.Query
-import akka.http.scaladsl.model.headers.Host
+import akka.http.scaladsl.model.headers._
 import akka.util.ByteString
+import com.bluelabs.akkaaws.AwsHeaders._
 
 object HttpRequests {
 
@@ -17,33 +20,49 @@ object HttpRequests {
       .withUri(uriFn(requestUri(s3Location)))
   }
 
-  def initiateMultipartUploadRequest(s3Location: S3Location): HttpRequest = {
+  def initiateMultipartUploadRequest(s3Location: S3Location, metadata: Metadata): HttpRequest = {
     s3Request(s3Location, HttpMethods.POST, _.withQuery(Query("uploads")))
+      .withEntity(metadata.contentType, ByteString.empty)
+      .mapHeaders(_ ++ metadataHeaders(metadata))
   }
-  
+
+
+  def metadataHeaders(metadata: Metadata): immutable.Iterable[HttpHeader] = {
+    metadata.serverSideEncryption match {
+      case ServerSideEncryption.Aes256 =>
+        List(new `X-Amz-Server-Side-Encryption`(AES256))
+      case ServerSideEncryption.Kms(keyId) =>
+        List(
+          new `X-Amz-Server-Side-Encryption`(KMS),
+          new `X-Amz-Server-Side-Encryption-Aws-Kms-Key-Id`(keyId)
+          // TODO add `x-amz-server-side-encryption-context` header.
+        )
+      case ServerSideEncryption.None =>
+        Nil
+    }
+  }
+
   def getRequest(s3Location: S3Location): HttpRequest = {
     s3Request(s3Location)
   }
 
-  def uploadPartRequest(upload: MultipartUpload, partNumber: Int, payload: ByteString): HttpRequest = {
+  def uploadPartRequest(upload: MultipartUpload, partNumber: Int, payload: ByteString, metadata: Metadata): HttpRequest = {
     s3Request(upload.s3Location,
-              HttpMethods.PUT,
-              _.withQuery(Query("partNumber" -> partNumber.toString, "uploadId" -> upload.uploadId))
-    ).withEntity(payload)
+      HttpMethods.PUT,
+      _.withQuery(Query("partNumber" -> partNumber.toString, "uploadId" -> upload.uploadId))
+    ).withEntity(metadata.contentType, payload).mapHeaders(_ ++ metadataHeaders(metadata))
   }
 
   def completeMultipartUploadRequest(upload: MultipartUpload, parts: Seq[(Int, String)])(implicit ec: ExecutionContext): Future[HttpRequest] = {
     val payload = <CompleteMultipartUpload>
-        {
-          parts.map{case (partNumber, etag) => <Part><PartNumber>{partNumber}</PartNumber><ETag>{etag}</ETag></Part>}
-        }
-      </CompleteMultipartUpload>
+      {parts.map { case (partNumber, etag) => <Part><PartNumber>{partNumber}</PartNumber><ETag>{etag}</ETag></Part>}}
+    </CompleteMultipartUpload>
     for {
       entity <- Marshal(payload).to[RequestEntity]
     } yield {
       s3Request(upload.s3Location,
-                HttpMethods.POST,
-                _.withQuery(Query("uploadId" -> upload.uploadId))
+        HttpMethods.POST,
+        _.withQuery(Query("uploadId" -> upload.uploadId))
       ).withEntity(entity)
     }
   }
