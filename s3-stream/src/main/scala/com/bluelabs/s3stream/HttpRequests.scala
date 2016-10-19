@@ -31,12 +31,15 @@ object HttpRequests {
     metadata.serverSideEncryption match {
       case ServerSideEncryption.Aes256 =>
         List(new `X-Amz-Server-Side-Encryption`(AES256))
-      case ServerSideEncryption.Kms(keyId) =>
+      case ServerSideEncryption.Kms(keyId, context) =>
         List(
           new `X-Amz-Server-Side-Encryption`(KMS),
           new `X-Amz-Server-Side-Encryption-Aws-Kms-Key-Id`(keyId)
-          // TODO add `x-amz-server-side-encryption-context` header.
-        )
+        ) ++ (if(context.isEmpty) {
+          List.empty
+        } else {
+          List(`X-Amz-Server-Side-Encryption-Context`(context))
+        })
       case ServerSideEncryption.None =>
         Nil
     }

@@ -9,6 +9,5 @@ object ServerSideEncryption {
 
   case object Aes256 extends ServerSideEncryption
 
-  // TODO add context
-  case class Kms(keyId: String) extends ServerSideEncryption
+  case class Kms(keyId: String, context: Map[String, String] = Map.empty) extends ServerSideEncryption
 }

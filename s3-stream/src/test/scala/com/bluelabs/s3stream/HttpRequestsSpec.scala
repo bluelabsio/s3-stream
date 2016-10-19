@@ -33,8 +33,12 @@ class HttpRequestsSpec extends FlatSpec with Matchers {
     metadataHeaders(Metadata(serverSideEncryption = ServerSideEncryption.Kms("my-id"))) should contain(`X-Amz-Server-Side-Encryption`(KMS))
   }
 
-  it should "add the x-amz-server-side-encryption-kms-id with KMZ header when the server side encryption is KMS" in {
+  it should "add the x-amz-server-side-encryption-kms-id when the server side encryption is KMS" in {
     metadataHeaders(Metadata(serverSideEncryption = ServerSideEncryption.Kms("my-id"))) should contain(`X-Amz-Server-Side-Encryption-Aws-Kms-Key-Id`("my-id"))
+  }
+
+  it should "add the x-amz-server-side-encryption-context when the server side encryption is KMS and context is not empty" in {
+    metadataHeaders(Metadata(serverSideEncryption = ServerSideEncryption.Kms("my-id", Map("foo"->"bar")))) should contain(`X-Amz-Server-Side-Encryption-Context`(Map("foo"->"bar")))
   }
 
   "initiateMultipartUploadRequest" should "set the default entity contentType when it is not specified" in {
