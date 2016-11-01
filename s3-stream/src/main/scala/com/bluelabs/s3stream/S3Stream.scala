@@ -191,7 +191,6 @@ class S3Stream(credentials: AWSCredentials, region: String = "us-east-1")(implic
     import mat.executionContext
 
     val req = HttpRequests.putObject(s3Location, data, md5)
-    println(s"Sending $req")
     Signer.signedRequest(req, signingKey)
       .flatMap(signedRequest => Http().singleRequest(signedRequest))
       .flatMap {
