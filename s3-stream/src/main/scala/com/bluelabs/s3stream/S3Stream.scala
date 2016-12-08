@@ -20,6 +20,11 @@ import akka.stream.{Attributes, Materializer}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.util.ByteString
 
+case class Metadata(
+  contentType: ContentType = ContentTypes.`application/octet-stream`,
+  serverSideEncryption: ServerSideEncryption = ServerSideEncryption.None
+)
+
 case class S3Location(bucket: String, key: String)
 
 case class MultipartUpload(s3Location: S3Location, uploadId: String)
@@ -56,18 +61,18 @@ class S3Stream(credentials: AWSCredentials, region: String = "us-east-1")(implic
     * @param chunkingParallelism
     * @return
     */
-  def multipartUpload(s3Location: S3Location, chunkSize: Int = MIN_CHUNK_SIZE, chunkingParallelism: Int = 4): Sink[ByteString, Future[CompleteMultipartUploadResult]] = {
+  def multipartUpload(s3Location: S3Location, chunkSize: Int = MIN_CHUNK_SIZE, chunkingParallelism: Int = 4, metadata: Metadata = Metadata()): Sink[ByteString, Future[CompleteMultipartUploadResult]] = {
     import mat.executionContext
 
-    chunkAndRequest(s3Location, chunkSize)(chunkingParallelism)
+    chunkAndRequest(s3Location, chunkSize, metadata)(chunkingParallelism)
       .log("s3-upload-response").withAttributes(Attributes.logLevels(onElement = Logging.DebugLevel, onFailure = Logging.WarningLevel, onFinish = Logging.InfoLevel))
       .toMat(completionSink(s3Location))(Keep.right)
   }
 
-  def initiateMultipartUpload(s3Location: S3Location): Future[MultipartUpload] = {
+  def initiateMultipartUpload(s3Location: S3Location, metadata: Metadata): Future[MultipartUpload] = {
     import mat.executionContext
 
-    val req = HttpRequests.initiateMultipartUploadRequest(s3Location)
+    val req = HttpRequests.initiateMultipartUploadRequest(s3Location, metadata)
     val response = for {
       signedReq <- Signer.signedRequest(req, signingKey)
       response <- Http().singleRequest(signedReq)
@@ -99,8 +104,9 @@ class S3Stream(credentials: AWSCredentials, region: String = "us-east-1")(implic
     * @param s3Location The s3 location to which to upload to
     * @return
     */
-  def initiateUpload(s3Location: S3Location): Source[(MultipartUpload, Int), NotUsed] = {
-    Source.single(s3Location).mapAsync(1)(initiateMultipartUpload(_))
+  def initiateUpload(s3Location: S3Location, metadata: Metadata): Source[(MultipartUpload, Int), NotUsed] = {
+    Source.single(s3Location)
+      .mapAsync(1)(initiateMultipartUpload(_, metadata))
       .mapConcat{case r => Stream.continually(r)}
       .zip(StreamUtils.counter(1))
   }
@@ -113,17 +119,17 @@ class S3Stream(credentials: AWSCredentials, region: String = "us-east-1")(implic
     * @param parallelism
     * @return
     */
-  def createRequests(s3Location: S3Location, chunkSize: Int = MIN_CHUNK_SIZE, parallelism: Int = 4): Flow[ByteString, (HttpRequest, (MultipartUpload, Int)), NotUsed] = {
+  def createRequests(s3Location: S3Location, chunkSize: Int = MIN_CHUNK_SIZE, parallelism: Int = 4, metadata: Metadata = Metadata()): Flow[ByteString, (HttpRequest, (MultipartUpload, Int)), NotUsed] = {
     assert(chunkSize >= MIN_CHUNK_SIZE, "Chunk size must be at least 5242880B. See http://docs.aws.amazon.com/AmazonS3/latest/API/mpUploadUploadPart.html")
-    val requestInfo: Source[(MultipartUpload, Int), NotUsed] = initiateUpload(s3Location)
+    val requestInfo: Source[(MultipartUpload, Int), NotUsed] = initiateUpload(s3Location, metadata)
     Flow[ByteString]
       .via(new Chunker(chunkSize))
-      .zipWith(requestInfo){case (payload, (uploadInfo, chunkIndex)) => (HttpRequests.uploadPartRequest(uploadInfo, chunkIndex, payload), (uploadInfo, chunkIndex))}
+      .zipWith(requestInfo){case (payload, (uploadInfo, chunkIndex)) => (HttpRequests.uploadPartRequest(uploadInfo, chunkIndex, payload, metadata), (uploadInfo, chunkIndex))}
       .mapAsync(parallelism){case (req, info) => Signer.signedRequest(req, signingKey).zip(Future.successful(info)) }
   }
 
-  def chunkAndRequest(s3Location: S3Location, chunkSize: Int = MIN_CHUNK_SIZE)(parallelism: Int = 4): Flow[ByteString, UploadPartResponse, NotUsed] = {
-    createRequests(s3Location, chunkSize, parallelism)
+  def chunkAndRequest(s3Location: S3Location, chunkSize: Int = MIN_CHUNK_SIZE, metadata: Metadata = Metadata())(parallelism: Int = 4): Flow[ByteString, UploadPartResponse, NotUsed] = {
+    createRequests(s3Location, chunkSize, parallelism, metadata)
       .via(Http().superPool[(MultipartUpload, Int)]())
         .map {
           case (Success(r), (upload, index)) => {
