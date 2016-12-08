@@ -1,3 +1,7 @@
+# DEPRECATED
+
+This project has been merged into [Alpakka](https://github.com/akka/alpakka/). The version found here is not actively maintained.
+
 # s3-stream
 Akka Streaming Client for S3 and Supporting Libraries
 
