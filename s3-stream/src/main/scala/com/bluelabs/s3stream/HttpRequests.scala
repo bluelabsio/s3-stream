@@ -6,7 +6,7 @@ import akka.http.scaladsl.marshallers.xml.ScalaXmlSupport._
 import akka.http.scaladsl.marshalling.Marshal
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.Uri.Query
-import akka.http.scaladsl.model.headers.Host
+import akka.http.scaladsl.model.headers.{Host, RawHeader}
 import akka.util.ByteString
 
 object HttpRequests {
@@ -48,8 +48,18 @@ object HttpRequests {
     }
   }
 
+  def putObject[T](s3Location: S3Location, data: ByteString, md5: Option[String] = None): HttpRequest = {
+    val headers = if (md5.isDefined)
+      List(Host(requestHost(s3Location)), RawHeader("Content-MD5", md5.get))
+    else
+      List(Host(requestHost(s3Location)))
+    HttpRequest(method = HttpMethods.PUT, headers = headers)
+      .withUri(requestUri(s3Location))
+      .withEntity(data)
+  }
 
-  def requestHost(s3Location: S3Location): Uri.Host = Uri.Host(s"${s3Location.bucket}.s3.amazonaws.com")
 
-  def requestUri(s3Location: S3Location): Uri = Uri(s"/${s3Location.key}").withHost(requestHost(s3Location)).withScheme("https")
+  def requestHost(s3Location: S3Location): Uri.Host = Uri.Host("s3.amazonaws.com")
+
+  def requestUri(s3Location: S3Location): Uri = Uri(s"/${s3Location.bucket}/${s3Location.key}").withHost(requestHost(s3Location)).withScheme("https")
 }

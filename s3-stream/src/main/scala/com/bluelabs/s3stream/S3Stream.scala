@@ -36,23 +36,25 @@ case class FailedUploadPart(multipartUpload: MultipartUpload, index: Int, except
 case class FailedUpload(reasons: Seq[Throwable]) extends Exception
 case class CompleteMultipartUploadResult(location: Uri, bucket: String, key: String, etag: String)
 
+class UploadFailedException(msg: String) extends RuntimeException(msg)
+
 class S3Stream(credentials: AWSCredentials, region: String = "us-east-1")(implicit system: ActorSystem, mat: Materializer) {
   import Marshalling._
 
   val MIN_CHUNK_SIZE = 5242880
   val signingKey = SigningKey(credentials, CredentialScope(LocalDate.now(), region, "s3"))
 
-  def download(s3Location: S3Location): Source[ByteString, NotUsed] = {
+  def getObject(s3Location: S3Location): Source[ByteString, NotUsed] = {
     import mat.executionContext
     Source.fromFuture(signAndGet(HttpRequests.getRequest(s3Location)).map(_.dataBytes))
           .flatMapConcat(identity)
   }
   
   /**
-    * Uploades a stream of ByteStrings to a specified location as a multipart upload.
+    * uploads a stream of ByteStrings to a specified location as a multipart upload.
     *
-    * @param s3Location
-    * @param chunkSize
+    * @param s3Location bucket and key to upload to
+    * @param chunkSize Size of each part to upload. Larger parts require fewer round-trips, but larger memory usage
     * @param chunkingParallelism
     * @return
     */
@@ -157,16 +159,16 @@ class S3Stream(credentials: AWSCredentials, region: String = "us-east-1")(implic
     import mat.executionContext
     signAndGet(request).flatMap(entity => Unmarshal(entity).to[T])
   }
-  
+
   private def signAndGet(request: HttpRequest): Future[ResponseEntity] = {
     import mat.executionContext
     for (
-        req <- Signer.signedRequest(request, signingKey);
-        res <- Http().singleRequest(req);
-        t <- entityForSuccess(res)
+      req <- Signer.signedRequest(request, signingKey);
+      res <- Http().singleRequest(req);
+      t <- entityForSuccess(res)
     ) yield t
   }
-  
+
   private def entityForSuccess(resp: HttpResponse)(implicit ctx: ExecutionContext): Future[ResponseEntity] = {
     resp match {
       case HttpResponse(status, _, entity, _) if status.isSuccess() => Future.successful(entity)
@@ -174,7 +176,29 @@ class S3Stream(credentials: AWSCredentials, region: String = "us-east-1")(implic
         Unmarshal(entity).to[String].flatMap { case err =>
           Future.failed(new Exception(err))
         }
-      }      
+      }
+    }
+  }
+
+ /**
+    * Upload an object to S3 directly. For small uploads, this requires a lot fewer round-trips than a multipart upload.
+    * @param s3Location Location in S3 to put the object
+    * @param data The data to upload
+    * @param md5 An optional MD5 hash of the data, used to prevent errors during upload.
+    * @return An empty string on success, an exception on failure
+    */
+  def putObject(s3Location: S3Location, data: ByteString, md5: Option[String] = None): Future[String] = {
+    import mat.executionContext
+
+    val req = HttpRequests.putObject(s3Location, data, md5)
+    Signer.signedRequest(req, signingKey)
+      .flatMap(signedRequest => Http().singleRequest(signedRequest))
+      .flatMap {
+        case HttpResponse(status, _, entity, _) if status.isSuccess() =>
+          Unmarshal(entity).to[String]
+        case response =>
+          response.discardEntityBytes()
+          Future.failed(new UploadFailedException(s"putObject returned ${response.status}"))
     }
   }
 }

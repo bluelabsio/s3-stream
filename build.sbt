@@ -3,7 +3,7 @@ import sbt.Keys._
 
 lazy val commonSettings = Seq(
   organization := "com.bluelabs",
-  version := "0.0.4",
+  version := "0.1.5",
   scalaVersion := "2.11.8",
   scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature"),
   bintrayReleaseOnPublish in ThisBuild := false,
@@ -27,7 +27,9 @@ lazy val root = (project in file(".")).
   aggregate(s3stream, awsRequests)
 
 lazy val awsRequests = (project in file("akka-http-aws")).
+  configs(IntegrationTest).
   settings(commonSettings: _*).
+  settings(Defaults.itSettings: _*).
   settings(
     name := "akka-http-aws",
     libraryDependencies ++= awsSignatureDeps
