@@ -49,7 +49,7 @@ class S3Stream(credentials: AWSCredentials, region: String = "us-east-1")(implic
   }
   
   /**
-    * Uploades a stream of ByteStrings to a specified location as a multipart upload.
+    * uploads a stream of ByteStrings to a specified location as a multipart upload.
     *
     * @param s3Location
     * @param chunkSize

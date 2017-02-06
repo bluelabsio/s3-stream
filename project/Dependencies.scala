@@ -2,7 +2,7 @@ import sbt._
 
 object Dependencies {
   // Versions
-  lazy val akkaVersion = "2.4.3"
+  lazy val akkaVersion = "2.4.4"
   lazy val scalatestVersion = "2.2.6"
 
   val akka = "com.typesafe.akka" %% "akka-actor" % akkaVersion
@@ -13,9 +13,17 @@ object Dependencies {
   val akkaStreamTestkit = "com.typesafe.akka" %% "akka-stream-testkit" % akkaVersion
   val akkaHttpXML = "com.typesafe.akka" %% "akka-http-xml-experimental" % akkaVersion
 
+  val sprayJson = "io.spray" %%  "spray-json" % "1.3.2"
+
   val scalatest = "org.scalatest" %% "scalatest" % scalatestVersion
 
-  val awsSignatureDeps = Seq(akkaHttpCore, scalatest % Test, akkaStreamTestkit % Test)
+  val logback = "ch.qos.logback" % "logback-classic" % "1.1.3"
+  val scalaLogging = "com.typesafe.scala-logging" %% "scala-logging" % "3.1.0"
+
+  val fastparse = "com.lihaoyi" %% "fastparse" % "0.3.7"
+
+  val awsSignatureDeps = Seq(akkaHttpCore, logback, scalaLogging, fastparse, sprayJson,
+    scalatest % "it,test", akkaStreamTestkit % "it,test")
 
   val s3StreamDeps = Seq(akkaHttpCore, akkaStream, akkaHttpExperimental, akkaHttpXML,
     akkaTestkit % Test, akkaStreamTestkit % Test, scalatest % Test)
